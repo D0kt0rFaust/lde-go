@@ -1,0 +1,162 @@
+version: '3.9'
+
+x-app-args: &app-args
+  - USER=${USER}
+  - UID=${UID}
+
+#x-app-logging: &app-logging
+#  driver: "json-file"
+#  options:
+#    max-size: "12Mb"
+#    max-file: "1"
+
+volumes:
+  elastic-data:
+  mysql-data:
+
+networks:
+ default:
+   driver: bridge
+   ipam:
+     config:
+       - subnet: 11.14.0.0/16
+ traefik-net:
+   name: traefik_net
+   external: true
+
+services:
+
+  # Main service with web interface
+  # app-main:
+  #   image: golang:1.21
+  #   working_dir: /app
+  #   command: sh -c "go run main.go"
+  #   depends_on:
+  #     - elasticsearch
+  #     - mysql
+  #   volumes:
+  #     - ${LOCAL_CODE_PATH_MAIN}:/app
+  #   networks:
+  #     - default
+  #     - traefik-net
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.app-main.entrypoints=web"
+  #     - "traefik.http.routers.app-main.rule=Host(`${LOCAL_HOSTNAME_MAIN}`)"
+  #     - "traefik.docker.network=traefik_net"
+  #     # BALANCING
+  #     - "traefik.http.services.app-main.loadbalancer.server.port=3000"
+
+  # Main service without web interface
+  app-main:
+    image: golang:1.21
+    working_dir: /app
+    command: sh -c "go run main.go"
+    depends_on:
+      - elasticsearch
+      - mysql
+    volumes:
+      - ${LOCAL_CODE_PATH_MAIN}:/app
+    networks:
+      - default
+    labels:
+      traefik.enable: false
+
+  ### Sidecar services
+
+  # Fulltext search engine
+  elasticsearch:
+    image: elastic/elasticsearch:7.17.12
+    environment:
+      ES_JAVA_OPTS: "-Xms1024m -Xmx1024m"
+      ELASTICSEARCH_USERNAME: "${LOCAL_ELASTIC_USERNAME}"
+      ELASTICSEARCH_PASSWORD: "${LOCAL_ELASTIC_PASSWORD}"
+      discovery.type: "single-node"
+      bootstrap.memory_lock: "true"
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.monitoring.collection.enabled: "true"
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    networks:
+      - default
+    labels:
+      traefik.enable: false
+
+  # Main database
+  mysql:
+    image: mysql:8.0
+    ports:
+      - ${LOCAL_MYSQL_FORWARD_DB_PORT}:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_MYSQL_ROOT_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-p${LOCAL_MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init/mysql/:/docker-entrypoint-initdb.d/
+    networks:
+      - default
+    labels:
+      traefik.enable: false
+
+  # Web interface form mysql
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:5.1.3
+    # logging: *app-logging
+    environment:
+      - TZ=Europe/Moscow
+      - PMA_HOSTS=mysql
+      - PMA_PORT=3306
+      - PMA_ABSOLUTE_URI=http://${LOCAL_HOSTNAME_PMA}
+    networks:
+      - default
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.phpmyadmin.entrypoints=web"
+      - "traefik.http.routers.phpmyadmin.rule=Host(`${LOCAL_HOSTNAME_PMA}`)"
+
+  # 
+  traefik:
+    image: traefik:2.10.4
+    # logging: *app-logging
+    container_name: traefik
+    # restart: always
+    command:
+      - --log.level=ERROR
+      - --api.insecure=true
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8080:8080"
+    networks:
+      traefik-net:
+        aliases:
+          - ${LOCAL_HOSTNAME_MAIN}
+      default:
+        aliases:
+          - ${LOCAL_HOSTNAME_MAIN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.rule=Host(`${LOCAL_HOSTNAME_TRAEFIK}`)"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
