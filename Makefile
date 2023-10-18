@@ -27,7 +27,8 @@ main-rm-code:
 	rm -rf ${LOCAL_CODE_PATH_MAIN}
 
 main-env-copy:
-	echo "main-env-copy: skip"
+	echo "Copy .env: main"
+	cp -rf ${LOCAL_CODE_PATH_MAIN}/.env.example ${LOCAL_CODE_PATH_MAIN}/.env
 
 main-packages-install:
 	echo "main-packages-install: skip"
@@ -93,4 +94,6 @@ clean: clean-build-cache
 
 lde: hosts git-clone env-copy network build up
 	echo "Local Docker Environment installed"
-	
+
+re:
+	docker compose restart app-main
