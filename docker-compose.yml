@@ -47,20 +47,20 @@ services:
       # BALANCING
       - "traefik.http.services.app-main.loadbalancer.server.port=3000"
 
-  # Telegram bot
-  app-bot:
-    image: golang:1.21
-    working_dir: /app
-    command: sh -c "go run main.go"
-    depends_on:
-      - elasticsearch
-      - mysql
-    volumes:
-      - ${LOCAL_CODE_PATH_BOT}:/app
-    networks:
-      - default
-    labels:
-      traefik.enable: false
+  # Service without web interface
+  # app-bot:
+  #   image: golang:1.21
+  #   working_dir: /app
+  #   command: sh -c "go run main.go"
+  #   depends_on:
+  #     - elasticsearch
+  #     - mysql
+  #   volumes:
+  #     - ${LOCAL_CODE_PATH_BOT}:/app
+  #   networks:
+  #     - default
+  #   labels:
+  #     traefik.enable: false
 
   ### Sidecar services
 
