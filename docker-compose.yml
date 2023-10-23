@@ -27,27 +27,6 @@ networks:
 services:
 
   # Main service with web interface
-  # app-main:
-  #   image: golang:1.21
-  #   working_dir: /app
-  #   command: sh -c "go run main.go"
-  #   depends_on:
-  #     - elasticsearch
-  #     - mysql
-  #   volumes:
-  #     - ${LOCAL_CODE_PATH_MAIN}:/app
-  #   networks:
-  #     - default
-  #     - traefik-net
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.app-main.entrypoints=web"
-  #     - "traefik.http.routers.app-main.rule=Host(`${LOCAL_HOSTNAME_MAIN}`)"
-  #     - "traefik.docker.network=traefik_net"
-  #     # BALANCING
-  #     - "traefik.http.services.app-main.loadbalancer.server.port=3000"
-
-  # Main service without web interface
   app-main:
     image: golang:1.21
     working_dir: /app
@@ -57,6 +36,27 @@ services:
       - mysql
     volumes:
       - ${LOCAL_CODE_PATH_MAIN}:/app
+    networks:
+      - default
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app-main.entrypoints=web"
+      - "traefik.http.routers.app-main.rule=Host(`${LOCAL_HOSTNAME_MAIN}`)"
+      - "traefik.docker.network=traefik_net"
+      # BALANCING
+      - "traefik.http.services.app-main.loadbalancer.server.port=3000"
+
+  # Telegram bot
+  app-bot:
+    image: golang:1.21
+    working_dir: /app
+    command: sh -c "go run main.go"
+    depends_on:
+      - elasticsearch
+      - mysql
+    volumes:
+      - ${LOCAL_CODE_PATH_BOT}:/app
     networks:
       - default
     labels:
